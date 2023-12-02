@@ -1,8 +1,11 @@
 import os
+from typing import List
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Pinecone
-from langchain.chains import RetrievalQAWithSourcesChain
+from langchain.vectorstores.pinecone import Pinecone
+from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
+from langchain.memory import ChatMessageHistory, ConversationBufferMemory
+from langchain.docstore.document import Document
 import pinecone
 import chainlit as cl
 
@@ -22,58 +25,56 @@ embeddings = OpenAIEmbeddings()
 welcome_message = "Welcome to the Chainlit Pinecone demo! Ask anything about documents you vectorized and stored in your Pinecone DB."
 
 
-@cl.langchain_factory(use_async=True)
-async def langchain_factory():
+@cl.on_chat_start
+async def start():
     await cl.Message(content=welcome_message).send()
     docsearch = Pinecone.from_existing_index(
         index_name=index_name, embedding=embeddings, namespace=namespace
     )
 
-    chain = RetrievalQAWithSourcesChain.from_chain_type(
-        ChatOpenAI(temperature=0, streaming=True),
+    message_history = ChatMessageHistory()
+
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        output_key="answer",
+        chat_memory=message_history,
+        return_messages=True,
+    )
+
+    chain = ConversationalRetrievalChain.from_llm(
+        ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, streaming=True),
         chain_type="stuff",
-        retriever=docsearch.as_retriever(max_tokens_limit=4097),
+        retriever=docsearch.as_retriever(),
+        memory=memory,
         return_source_documents=True,
     )
-    return chain
+    cl.user_session.set("chain", chain)
 
 
-@cl.langchain_postprocess
-async def process_response(res):
+@cl.on_message
+async def main(message: cl.Message):
+    chain = cl.user_session.get("chain")  # type: ConversationalRetrievalChain
+
+    cb = cl.AsyncLangchainCallbackHandler()
+
+    res = await chain.acall(message.content, callbacks=[cb])
     answer = res["answer"]
-    sources = res.get("sources", "").strip()  # Use the get method with a default value
-    source_elements = []
-    docs = res.get("source_documents", None)
+    source_documents = res["source_documents"]  # type: List[Document]
 
-    if docs:
-        metadatas = [doc.metadata for doc in docs]
-        # Get the source names from the metadata
-        all_sources = [m["source"] for m in metadatas]
+    text_elements = []  # type: List[cl.Text]
 
-        if sources:
-            found_sources = []
-            # For each source mentioned by the LLM
-            for source_index, source in enumerate(sources.split(",")):
-                # Remove the period and any whitespace
-                orig_source_name = source.strip().replace(".", "")
-                # The name that will be displayed in the UI
-                clean_source_name = f"source {source_index}"
-                try:
-                    # Find the mentioned source in the list of all sources
-                    found_index = all_sources.index(orig_source_name)
-                except ValueError:
-                    continue
-                # Get the text from the source document
-                text = docs[found_index].page_content
+    if source_documents:
+        for source_idx, source_doc in enumerate(source_documents):
+            source_name = f"source_{source_idx}"
+            # Create the text element referenced in the message
+            text_elements.append(
+                cl.Text(content=source_doc.page_content, name=source_name)
+            )
+        source_names = [text_el.name for text_el in text_elements]
 
-                found_sources.append(clean_source_name)
-                source_elements.append(cl.Text(content=text, name=clean_source_name))
+        if source_names:
+            answer += f"\nSources: {', '.join(source_names)}"
+        else:
+            answer += "\nNo sources found"
 
-            if found_sources:
-                # Add the sources to the answer, referencing the text elements
-                answer += f"\nSources: {', '.join(found_sources)}"
-            else:
-                answer += "\nNo sources found"
-
-    # Send the answer and the text elements to the UI
-    await cl.Message(content=answer, elements=source_elements).send()
+    await cl.Message(content=answer, elements=text_elements).send()

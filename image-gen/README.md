@@ -1,3 +1,6 @@
+Title: Image Generation with Chainlit
+Tags: [image, stability, langchain]
+
 # Image Generation with Chainlit
 
 This folder is showing how to use Stability AI to generate images and send them to the Chainlit UI.

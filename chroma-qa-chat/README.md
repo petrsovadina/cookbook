@@ -1,3 +1,5 @@
+Title: Arxiv Q&A
+Tags: [QA, chromadb, huggingface, deployment]
 ---
 title: ArxivChainLitDemo
 emoji: 💻
@@ -21,3 +23,4 @@ This folder is showing how to:
 Video from [Chris Alexiuk](https://twitter.com/c_s_ale): https://www.youtube.com/watch?v=9SBUStfCtmk&ab_channel=ChrisAlexiuk
 
 Note: the code is updated to work with the new async implementation
+

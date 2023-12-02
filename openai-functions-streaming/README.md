@@ -1,3 +1,6 @@
+Title: OpenAI functions streaming with Chainlit
+Tags: [openai-functions]
+
 # OpenAI functions streaming with Chainlit
 
 This folder is showing how to use OpenAI functions with Chainlit.

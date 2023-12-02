@@ -1,3 +1,5 @@
+Title : Your own Claude by Anthropic 🔥
+Tags : [anthropic]
 # Your own Claude by Anthropic 🔥
 
 This folder is showing how to:
@@ -7,3 +9,4 @@ This folder is showing how to:
 Check out https://www.anthropic.com/
 
 ![Anthropic](./anthropic.jpg)
+
